@@ -1,0 +1,66 @@
+from math import radians, cos, sin, asin, sqrt
+import pandas as pd
+import numpy as np
+
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance in kilometers between two points 
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians 
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    # haversine formula 
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
+    return c * r
+
+orders = [
+    {'order_id': 1, 'from': (60.0, 127.5545), 'to': (61.12341, 128.0), 'cost': 100},
+    {'order_id': 2, 'from': (61.0, 128.1234), 'to': (62.4321, 129.0), 'cost': 150},
+    {'order_id': 3, 'from': (61.2, 128.44), 'to': (62.2345, 129.0), 'cost': 200},
+    {'order_id': 4, 'from': (61.4, 128.1233), 'to': (62.456, 129.0), 'cost': 100},
+    {'order_id': 5, 'from': (61.1, 128.53454), 'to': (62.643, 129.0), 'cost': 110},
+    {'order_id': 6, 'from': (61.2, 128.4323), 'to': (62.1111, 129.0), 'cost': 130},
+    
+]
+
+couriers = [
+    {'courier_id': 1, 'location': (61.5, 126.5), 'orders': []},
+    {'courier_id': 2, 'location': (62.0, 129.5), 'orders': []},
+    {'courier_id': 3, 'location': (62.4, 129.5), 'orders': []},
+    {'courier_id': 4, 'location': (62.1234, 129.5), 'orders': []},
+    {'courier_id': 5, 'location': (62.5432, 129.5), 'orders': []},
+    
+]
+
+
+orders = pd.DataFrame(orders)
+couriers = pd.DataFrame(couriers)
+
+all_dist = pd.DataFrame()
+# считаем дистанции для всех сочетаний order_id и courier_id
+for _, order in orders.iterrows():
+    for _, courier in couriers.iterrows():
+        dist = haversine(lon1=order['from'][1], lat1=order['from'][0], lon2=courier['location'][1], lat2=courier['location'][0])
+        temp = dict()
+        temp['order_id'] = order.order_id
+        temp['courier_id'] = courier.courier_id
+        temp['dist'] = dist
+        all_dist = pd.concat([all_dist, pd.DataFrame([temp])]).reset_index(drop=True) 
+
+work_df = all_dist.copy()
+res = pd.DataFrame()
+
+for order_id in work_df['order_id'].unique().tolist():
+    if len(work_df) == 0:
+        res = pd.concat([res, pd.DataFrame([{'order_id': order_id, 'courier_id': np.NaN, 'dist': np.NaN}])])
+        break
+    temp = work_df.loc[work_df[work_df['order_id'] == order_id]['dist'].idxmin()].to_dict() # находим для каждого заказа ближайшего курьера
+    res = pd.concat([res, pd.DataFrame([temp])]) # результат - для каждого заказа свой уникальный курьер
+    work_df = work_df[work_df['courier_id'] != temp['courier_id']] # удаляем из DF курьера, которому уже назначили заказ
+
+print(res)
